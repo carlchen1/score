@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时比分系统 - 优化背景版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', 'Microsoft YaHei', sans-serif;
+        }
+
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            background: linear-gradient(135deg, #2d0b36, #8b0000, #4a0e4e);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            flex-wrap: wrap;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            margin-right: 15px;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .toggle-btn,
+        .font-btn {
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.3s;
+        }
+
+        .toggle-btn:hover,
+        .font-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .font-controls {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .font-size-indicator {
+            font-size: 0.8rem;
+            margin-left: 8px;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 10px;
+            height: calc(100vh - 50px);
+        }
+
+        .score-display {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            max-width: 100%;
+            height: 50vh;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .team {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            padding: 15px 10px;
+            text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            min-height: 180px;
+            transition: all 0.3s;
+        }
+
+        .team-name {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+            font-weight: bold;
+            text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.9);
+            cursor: pointer;
+            padding: 8px 15px;
+            border-radius: 8px;
+            transition: all 0.3s;
+            background: rgba(255, 255, 255, 0.15);
+            width: 90%;
+            text-align: center;
+            color: #fff;
+        }
+
+        .team-name:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .score {
+            font-size: 5rem;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow:
+                0 0 15px rgba(255, 215, 0, 0.9),
+                0 0 30px rgba(255, 215, 0, 0.6);
+            line-height: 1;
+            font-family: 'Arial Black', sans-serif;
+        }
+
+        .controls-panel {
+            width: 100%;
+            max-width: 100%;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .team-controls {
+            text-align: center;
+            flex: 1;
+            min-width: 45%;
+        }
+
+        .team-controls h3 {
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 14px 18px;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            min-width: 70px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .add-btn {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .subtract-btn {
+            background: #f44336;
+            color: white;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        button:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .reset-section {
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .reset-btn {
+            background: #ff9800;
+            color: white;
+            padding: 10px 20px;
+        }
+
+        .status-info {
+            text-align: center;
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+
+        /* 电脑端样式 */
+        @media (min-width: 769px) {
+            .header {
+                padding: 10px 20px;
+            }
+
+            h1 {
+                font-size: 2.5rem;
+            }
+
+            .header-controls {
+                gap: 10px;
+            }
+
+            .toggle-btn,
+            .font-btn {
+                padding: 8px 16px;
+                font-size: 0.9rem;
+            }
+
+            .main-content {
+                justify-content: center;
+                padding: 20px;
+            }
+
+            .score-display {
+                height: 70vh;
+                gap: 20px;
+                margin-bottom: 20px;
+            }
+
+            .team {
+                padding: 20px;
+                min-height: 300px;
+            }
+
+            .team-name {
+                font-size: 4rem;
+                margin-bottom: 20px;
+                padding: 10px 20px;
+            }
+
+            .score {
+                font-size: 12rem;
+            }
+
+            .controls {
+                display: none;
+            }
+
+            .controls-panel {
+                padding: 20px;
+            }
+        }
+
+        /* 分数变化动画 */
+        @keyframes scoreChange {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .score-change {
+            animation: scoreChange 0.4s ease;
+        }
+
+        /* 语音提示样式 */
+        .voice-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 1.5rem;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .voice-notification.show {
+            opacity: 1;
+        }
+
+        /* 连接状态指示器 */
+        .connection-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
+        .connection-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .connected .connection-dot {
+            background: #4CAF50;
+            box-shadow: 0 0 8px #4CAF50;
+            animation: pulse 2s infinite;
+        }
+
+        .disconnected .connection-dot {
+            background: #f44336;
+            box-shadow: 0 0 8px #f44336;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>实时比分系统</h1>
+        <div class="header-controls">
+            <button class="toggle-btn" onclick="toggleControls()">隐藏控制</button>
+            <div class="font-controls">
+                <button class="font-btn" onclick="changeFontSize(-1)">A-</button>
+                <button class="font-btn" onclick="changeFontSize(1)">A+</button>
+                <span class="font-size-indicator" id="fontSizeIndicator">100%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="score-display">
+            <div class="team" id="team1">
+                <div class="team-name" contenteditable="true" onblur="updateTeamName(1)">红队</div>
+                <div class="score" id="score1">108</div>
+            </div>
+
+            <div class="team" id="team2">
+                <div class="team-name" contenteditable="true" onblur="updateTeamName(2)">蓝队</div>
+                <div class="score" id="score2">22</div>
+            </div>
+        </div>
+
+        <div class="controls-panel">
+            <div class="controls">
+                <div class="team-controls">
+                    <h3>红队控制</h3>
+                    <div class="control-buttons">
+                        <button class="add-btn" onclick="updateScore(1, 1)">+1</button>
+                        <button class="add-btn" onclick="updateScore(1, 2)">+2</button>
+                        <button class="add-btn" onclick="updateScore(1, 3)">+3</button>
+                        <button class="subtract-btn" onclick="updateScore(1, -1)">-1</button>
+                    </div>
+                </div>
+
+                <div class="team-controls">
+                    <h3>蓝队控制</h3>
+                    <div class="control-buttons">
+                        <button class="add-btn" onclick="updateScore(2, 1)">+1</button>
+                        <button class="add-btn" onclick="updateScore(2, 2)">+2</button>
+                        <button class="add-btn" onclick="updateScore(2, 3)">+3</button>
+                        <button class="subtract-btn" onclick="updateScore(2, -1)">-1</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="reset-section">
+                <button class="reset-btn" onclick="resetScores()">重置分数</button>
+            </div>
+
+            <div class="status-info">
+                <div class="connection-status" id="connectionStatus">
+                    <span class="connection-dot"></span>
+                    <span id="statusText">状态: 已连接 - 手机端控制模式</span>
+                </div>
+                <div>客户端: <span id="clientCount">0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 语音提示显示 -->
+    <div class="voice-notification" id="voiceNotification"></div>
+
+    <script>
+        // 初始化游戏状态
+        let gameState = {
+            team1: 108,
+            team2: 22,
+            team1Name: "红队",
+            team2Name: "蓝队"
+        };
+
+        let ws = null;
+        let isMobile = false;
+        let controlsVisible = true;
+        let fontSizeMultiplier = 1.0;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        // 音频上下文和音效
+        let audioContext;
+        let scoreSound1, scoreSound2, scoreSound3;
+
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            // 检测设备类型
+            isMobile = detectDeviceType();
+
+            // 从本地存储加载数据
+            loadFromLocalStorage();
+
+            // 初始化音频
+            initAudio();
+
+            // 更新显示
+            updateDisplay();
+
+            // 尝试连接WebSocket服务器
+            connectWebSocket();
+        });
+
+        // 检测设备类型
+        function detectDeviceType() {
+            const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            updateConnectionStatus('connected', mobile ? '手机端控制模式' : '电脑端显示模式');
+            return mobile;
+        }
+
+        // 切换控制面板显示
+        function toggleControls() {
+            const panel = document.querySelector('.controls-panel');
+            const button = document.querySelector('.toggle-btn');
+
+            controlsVisible = !controlsVisible;
+
+            if (controlsVisible) {
+                panel.style.display = 'block';
+                button.textContent = '隐藏控制';
+            } else {
+                panel.style.display = 'none';
+                button.textContent = '显示控制';
+            }
+        }
+
+        // 初始化音频
+        function initAudio() {
+            try {
+                // 创建音频上下文
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+                // 创建不同分数的音效
+                scoreSound1 = createBeepSound(800, 0.2);
+                scoreSound2 = createBeepSound(1000, 0.3);
+                scoreSound3 = createBeepSound(1200, 0.4);
+
+                console.log('音频初始化成功');
+            } catch (error) {
+                console.log('音频初始化失败:', error);
+            }
+        }
+
+        // 创建beep声音
+        function createBeepSound(frequency, duration) {
+            return function () {
+                try {
+                    if (!audioContext) {
+                        console.log('音频上下文未初始化');
+                        return;
+                    }
+
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+
+                    oscillator.frequency.value = frequency;
+                    oscillator.type = 'sine';
+
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + duration);
+                } catch (error) {
+                    console.log('播放音效失败:', error);
+                }
+            };
+        }
+
+        // 播放声音提示
+        function playSound(points, team) {
+            try {
+                // 播放音效
+                if (points === 3 && scoreSound3) {
+                    scoreSound3();
+                } else if (points === 2 && scoreSound2) {
+                    scoreSound2();
+                } else if (scoreSound1) {
+                    scoreSound1();
+                }
+
+                // 电脑端播放语音提示
+                if (!isMobile && 'speechSynthesis' in window) {
+                    const teamName = team === 1 ? gameState.team1Name : gameState.team2Name;
+                    const utterance = new SpeechSynthesisUtterance();
+                    utterance.text = `${teamName}加${points}分`;
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.0;
+                    utterance.volume = 0.8;
+
+                    // 显示语音提示
+                    showVoiceNotification(teamName, points);
+
+                    // 播放语音
+                    speechSynthesis.speak(utterance);
+                }
+            } catch (error) {
+                console.log('声音播放失败:', error);
+            }
+        }
+
+        // 显示语音提示
+        function showVoiceNotification(teamName, points) {
+            const notification = document.getElementById('voiceNotification');
+            notification.textContent = `${teamName} 加 ${points} 分`;
+            notification.classList.add('show');
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 2000);
+        }
+
+        // 连接WebSocket服务器
+        function connectWebSocket() {
+            try {
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = wsProtocol + '//' + window.location.host;
+
+                console.log('尝试连接到WebSocket服务器:', wsUrl);
+
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    updateConnectionStatus('connected', '已连接到服务器');
+                    reconnectAttempts = 0;
+                    console.log('WebSocket连接成功');
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('收到消息:', data);
+
+                        if (data.type === 'init') {
+                            // 初始化数据
+                            gameState = data.data;
+                            updateDisplay();
+                            updateConnectionStatus('connected', '已同步数据');
+                        } else if (data.type === 'stateUpdate') {
+                            // 更新数据
+                            gameState = data.data;
+                            updateDisplay();
+
+                            // 播放音效（如果消息包含音效信息）
+                            if (data.playSound) {
+                                playSound(data.points, data.team);
+                            }
+                        } else if (data.type === 'clientCount') {
+                            // 更新客户端数量
+                            document.getElementById('clientCount').textContent = data.count;
+                        } else if (data.type === 'playSound') {
+                            // 播放音效
+                            playSound(data.points, data.team);
+                        }
+                    } catch (error) {
+                        console.log('消息解析错误:', error);
+                    }
+                };
+
+                ws.onclose = () => {
+                    updateConnectionStatus('disconnected', '连接已断开');
+                    console.log('WebSocket连接断开');
+
+                    // 尝试重连
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        setTimeout(() => {
+                            reconnectAttempts++;
+                            console.log(`尝试重连 (${reconnectAttempts}/${maxReconnectAttempts})`);
+                            connectWebSocket();
+                        }, 3000);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    updateConnectionStatus('disconnected', '连接错误');
+                    console.log('WebSocket错误:', error);
+                };
+
+            } catch (error) {
+                console.log('连接失败:', error);
+                updateConnectionStatus('disconnected', '连接失败');
+            }
+        }
+
+        // 更新分数
+        function updateScore(team, points) {
+            if (team === 1) {
+                gameState.team1 = Math.max(0, gameState.team1 + points);
+            } else {
+                gameState.team2 = Math.max(0, gameState.team2 + points);
+            }
+
+            updateDisplay();
+            saveToLocalStorage();
+
+            // 播放声音提示
+            playSound(Math.abs(points), team);
+
+            // 发送更新到服务器
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = {
+                    type: 'updateScore',
+                    team: team,
+                    points: points,
+                    playSound: true, // 标记需要播放音效
+                    pointsValue: Math.abs(points) // 传递分数值用于音效
+                };
+
+                ws.send(JSON.stringify(message));
+                console.log('发送分数更新:', message);
+            } else {
+                console.log('WebSocket未连接，无法发送更新');
+            }
+
+            // 添加分数变化动画
+            const scoreElement = document.getElementById(`score${team}`);
+            scoreElement.classList.remove('score-change');
+            void scoreElement.offsetWidth;
+            scoreElement.classList.add('score-change');
+        }
+
+        // 更新队伍名称
+        function updateTeamName(team) {
+            const nameElement = document.querySelector(`#team${team} .team-name`);
+            gameState[`team${team}Name`] = nameElement.textContent;
+            saveToLocalStorage();
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'updateTeamName',
+                    team: team,
+                    name: nameElement.textContent
+                }));
+            }
+        }
+
+        // 更新显示
+        function updateDisplay() {
+            document.getElementById('score1').textContent = gameState.team1;
+            document.getElementById('score2').textContent = gameState.team2;
+            document.querySelector('#team1 .team-name').textContent = gameState.team1Name;
+            document.querySelector('#team2 .team-name').textContent = gameState.team2Name;
+
+            // 应用字体大小
+            applyFontSize();
+        }
+
+        // 重置分数
+        function resetScores() {
+            if (confirm('确定要重置所有分数吗？')) {
+                gameState.team1 = 0;
+                gameState.team2 = 0;
+                updateDisplay();
+                saveToLocalStorage();
+
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'reset' }));
+                }
+            }
+        }
+
+        // 更新连接状态显示
+        function updateConnectionStatus(state, message) {
+            const statusElement = document.getElementById('connectionStatus');
+            const statusText = document.getElementById('statusText');
+
+            statusElement.className = "connection-status " + state;
+            statusText.textContent = '状态: ' + message;
+        }
+
+        // 保存到本地存储
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('basketballScores', JSON.stringify(gameState));
+                localStorage.setItem('fontSizeMultiplier', fontSizeMultiplier.toString());
+            } catch (error) {
+                console.log('保存失败:', error);
+            }
+        }
+
+        // 从本地存储加载
+        function loadFromLocalStorage() {
+            try {
+                const saved = localStorage.getItem('basketballScores');
+                if (saved) {
+                    const savedScores = JSON.parse(saved);
+                    gameState = { ...gameState, ...savedScores };
+                }
+
+                const savedFontSize = localStorage.getItem('fontSizeMultiplier');
+                if (savedFontSize) {
+                    fontSizeMultiplier = parseFloat(savedFontSize);
+                    updateFontSizeIndicator();
+                }
+            } catch (error) {
+                console.log('加载失败:', error);
+            }
+        }
+
+        // 改变字体大小
+        function changeFontSize(delta) {
+            fontSizeMultiplier += delta * 0.1;
+            fontSizeMultiplier = Math.max(0.7, Math.min(2.0, fontSizeMultiplier));
+            applyFontSize();
+            saveToLocalStorage();
+            updateFontSizeIndicator();
+        }
+
+        // 应用字体大小
+        function applyFontSize() {
+            const teamNames = document.querySelectorAll('.team-name');
+            const scores = document.querySelectorAll('.score');
+
+            // 基础字体大小
+            const baseTeamNameSize = isMobile ? 2.2 : 4;
+            const baseScoreSize = isMobile ? 5 : 12;
+
+            teamNames.forEach(name => {
+                name.style.fontSize = (baseTeamNameSize * fontSizeMultiplier) + 'rem';
+            });
+
+            scores.forEach(score => {
+                score.style.fontSize = (baseScoreSize * fontSizeMultiplier) + 'rem';
+            });
+        }
+
+        // 更新字体大小指示器
+        function updateFontSizeIndicator() {
+            const indicator = document.getElementById('fontSizeIndicator');
+            indicator.textContent = Math.round(fontSizeMultiplier * 100) + '%';
+        }
+
+        // 键盘快捷键支持
+        document.addEventListener('keydown', (e) => {
+            if (document.activeElement.contentEditable === 'true') return;
+
+            switch (e.key) {
+                case '1': updateScore(1, 1); break;
+                case '2': updateScore(2, 1); break;
+                case 'q': case 'Q': updateScore(1, 2); break;
+                case 'w': case 'W': updateScore(2, 2); break;
+                case 'a': case 'A': updateScore(1, 3); break;
+                case 's': case 'S': updateScore(2, 3); break;
+                case 'z': case 'Z': updateScore(1, -1); break;
+                case 'x': case 'X': updateScore(2, -1); break;
+                case 'r': case 'R': if (e.ctrlKey) resetScores(); break;
+                case ' ': e.preventDefault(); resetScores(); break;
+                case 'h': case 'H': toggleControls(); break;
+                case '[':
+                case '-': changeFontSize(-1); break;
+                case ']':
+                case '=': changeFontSize(1); break;
+            }
+        });
+
+        // 确保触摸设备可以正常操作
+        document.addEventListener('touchmove', function (e) {
+            // 允许默认的滚动行为
+        }, { passive: true });
+
+        // 初始化字体大小指示器
+        updateFontSizeIndicator();
+    </script>
+</body>
+
+</html>
