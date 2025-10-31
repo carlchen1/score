@@ -114,6 +114,8 @@
             border: 2px solid rgba(255, 255, 255, 0.3);
             min-height: 180px;
             transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
         }
 
         .team-name {
@@ -129,6 +131,7 @@
             width: 90%;
             text-align: center;
             color: #fff;
+            z-index: 2;
         }
 
         .team-name:hover {
@@ -144,6 +147,8 @@
                 0 0 30px rgba(255, 215, 0, 0.6);
             line-height: 1;
             font-family: 'Arial Black', sans-serif;
+            z-index: 2;
+            position: relative;
         }
 
         .controls-panel {
@@ -286,6 +291,16 @@
             .controls-panel {
                 padding: 20px;
             }
+
+            /* 电脑端分数变化提示样式 */
+            .score-change-indicator {
+                font-size: 6rem !important;
+                /* 电脑端字体更大 */
+                right: 20% !important;
+                /* 放在右侧 */
+                left: auto !important;
+                animation: score-indicator-desktop 1.2s ease-out forwards !important;
+            }
         }
 
         /* 分数变化动画 */
@@ -295,7 +310,7 @@
             }
 
             50% {
-                transform: scale(1.1);
+                transform: scale(1.2);
             }
 
             100% {
@@ -304,7 +319,7 @@
         }
 
         .score-change {
-            animation: scoreChange 0.4s ease;
+            animation: scoreChange 0.5s ease;
         }
 
         /* 语音提示样式 */
@@ -366,6 +381,141 @@
 
             100% {
                 opacity: 1;
+            }
+        }
+
+        /* 新增的酷炫效果样式 */
+
+        /* 粒子效果 */
+        .particle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* 闪光效果 */
+        .flash {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 70%);
+            opacity: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* 光晕效果 */
+        .glow {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.7);
+            opacity: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* 分数变化提示 */
+        .score-change-indicator {
+            position: absolute;
+            font-size: 3rem;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+            z-index: 3;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        /* 脉冲效果 */
+        @keyframes pulse-glow {
+            0% {
+                opacity: 0;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 1;
+                transform: scale(1.1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(1.2);
+            }
+        }
+
+        /* 粒子动画 */
+        @keyframes particle-explode {
+            0% {
+                transform: translate(0, 0) scale(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(1);
+                opacity: 0;
+            }
+        }
+
+        /* 闪光动画 */
+        @keyframes flash {
+            0% {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(1.5);
+            }
+        }
+
+        /* 手机端分数提示动画 */
+        @keyframes score-indicator {
+            0% {
+                opacity: 0;
+                transform: translateY(0) scale(0.5);
+            }
+
+            20% {
+                opacity: 1;
+                transform: translateY(-20px) scale(1.2);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-60px) scale(1);
+            }
+        }
+
+        /* 电脑端分数提示动画 */
+        @keyframes score-indicator-desktop {
+            0% {
+                opacity: 0;
+                transform: translateX(0) scale(0.5);
+            }
+
+            20% {
+                opacity: 1;
+                transform: translateX(50px) scale(1.2);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateX(100px) scale(1);
             }
         }
     </style>
@@ -614,20 +764,20 @@
                             updateDisplay();
                             updateConnectionStatus('connected', '已同步数据');
                         } else if (data.type === 'stateUpdate') {
-                            // 更新数据
+                            // 更新数据，但不触发效果
                             gameState = data.data;
                             updateDisplay();
-
-                            // 播放音效（如果消息包含音效信息）
-                            if (data.playSound) {
-                                playSound(data.points, data.team);
-                            }
                         } else if (data.type === 'clientCount') {
                             // 更新客户端数量
                             document.getElementById('clientCount').textContent = data.count;
-                        } else if (data.type === 'playSound') {
-                            // 播放音效
-                            playSound(data.points, data.team);
+                        } else if (data.type === 'triggerEffects') {
+                            // 专门处理效果触发消息
+                            console.log('收到服务器广播的效果触发消息');
+                            createScoreEffects(data.team, data.points);
+
+                            if (data.playSound) {
+                                playSound(data.points, data.team);
+                            }
                         }
                     } catch (error) {
                         console.log('消息解析错误:', error);
@@ -660,7 +810,8 @@
         }
 
         // 更新分数
-        function updateScore(team, points) {
+        // 更新分数函数（修改后）
+        function updateScore(team, points, isRemoteOperation = false) {
             if (team === 1) {
                 gameState.team1 = Math.max(0, gameState.team1 + points);
             } else {
@@ -670,30 +821,195 @@
             updateDisplay();
             saveToLocalStorage();
 
-            // 播放声音提示
-            playSound(Math.abs(points), team);
+            // 如果是本地操作
+            if (!isRemoteOperation) {
+                // 播放声音提示
+                playSound(Math.abs(points), team);
 
-            // 发送更新到服务器
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                const message = {
-                    type: 'updateScore',
-                    team: team,
-                    points: points,
-                    playSound: true, // 标记需要播放音效
-                    pointsValue: Math.abs(points) // 传递分数值用于音效
-                };
+                // 发送更新到服务器
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    const message = {
+                        type: 'updateScore',
+                        team: team,
+                        points: points,
+                        playSound: true,
+                        pointsValue: Math.abs(points),
+                        triggerEffects: true
+                    };
 
-                ws.send(JSON.stringify(message));
-                console.log('发送分数更新:', message);
-            } else {
-                console.log('WebSocket未连接，无法发送更新');
+                    ws.send(JSON.stringify(message));
+                    console.log('发送分数更新:', message);
+                }
+
+                // 触发本地效果
+                createScoreEffects(team, points);
             }
+            // 如果是远程操作，只更新显示，不触发效果
+            else {
+                console.log('收到远程操作，只更新显示');
+            }
+        }
 
-            // 添加分数变化动画
+        // 修改WebSocket消息处理（修改后）
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('收到消息:', data);
+
+                if (data.type === 'init') {
+                    // 初始化数据
+                    gameState = data.data;
+                    updateDisplay();
+                    updateConnectionStatus('connected', '已同步数据');
+                } else if (data.type === 'stateUpdate') {
+                    // 更新数据，但不触发效果
+                    gameState = data.data;
+                    updateDisplay();
+                } else if (data.type === 'clientCount') {
+                    // 更新客户端数量
+                    document.getElementById('clientCount').textContent = data.count;
+                } else if (data.type === 'triggerEffects') {
+                    // 专门处理效果触发消息
+                    console.log('收到服务器广播的效果触发消息');
+                    createScoreEffects(data.team, data.points);
+
+                    if (data.playSound) {
+                        playSound(data.points, data.team);
+                    }
+                }
+            } catch (error) {
+                console.log('消息解析错误:', error);
+            }
+        };
+
+        // 创建酷炫的分数变化效果
+        function createScoreEffects(team, points) {
+            const teamElement = document.getElementById(`team${team}`);
             const scoreElement = document.getElementById(`score${team}`);
+
+            // 1. 添加分数变化动画
             scoreElement.classList.remove('score-change');
             void scoreElement.offsetWidth;
             scoreElement.classList.add('score-change');
+
+            // 2. 创建粒子效果
+            createParticleEffect(teamElement, points);
+
+            // 3. 创建闪光效果
+            createFlashEffect(teamElement);
+
+            // 4. 创建光晕效果
+            createGlowEffect(teamElement);
+
+            // 5. 创建分数变化提示
+            createScoreIndicator(teamElement, points);
+        }
+
+        // 创建粒子效果
+        function createParticleEffect(teamElement, points) {
+            const particleCount = Math.min(Math.abs(points) * 5, 30); // 根据分数决定粒子数量
+
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+
+                // 随机颜色
+                const colors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#ff9ff3', '#feca57'];
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                particle.style.background = color;
+
+                // 随机位置
+                const x = Math.random() * 100;
+                const y = Math.random() * 100;
+                particle.style.left = `${x}%`;
+                particle.style.top = `${y}%`;
+
+                // 随机移动方向
+                const tx = (Math.random() - 0.5) * 200;
+                const ty = (Math.random() - 0.5) * 200;
+                particle.style.setProperty('--tx', `${tx}px`);
+                particle.style.setProperty('--ty', `${ty}px`);
+
+                // 随机大小
+                const size = Math.random() * 6 + 4;
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+
+                // 动画
+                particle.style.animation = `particle-explode ${Math.random() * 0.5 + 0.5}s ease-out forwards`;
+
+                teamElement.appendChild(particle);
+
+                // 动画结束后移除粒子
+                setTimeout(() => {
+                    if (particle.parentNode) {
+                        particle.parentNode.removeChild(particle);
+                    }
+                }, 1000);
+            }
+        }
+
+        // 创建闪光效果
+        function createFlashEffect(teamElement) {
+            const flash = document.createElement('div');
+            flash.className = 'flash';
+            flash.style.animation = 'flash 0.6s ease-out forwards';
+
+            teamElement.appendChild(flash);
+
+            // 动画结束后移除闪光
+            setTimeout(() => {
+                if (flash.parentNode) {
+                    flash.parentNode.removeChild(flash);
+                }
+            }, 600);
+        }
+
+        // 创建光晕效果
+        function createGlowEffect(teamElement) {
+            const glow = document.createElement('div');
+            glow.className = 'glow';
+            glow.style.animation = 'pulse-glow 0.8s ease-out forwards';
+
+            teamElement.appendChild(glow);
+
+            // 动画结束后移除光晕
+            setTimeout(() => {
+                if (glow.parentNode) {
+                    glow.parentNode.removeChild(glow);
+                }
+            }, 800);
+        }
+
+        // 创建分数变化提示
+        function createScoreIndicator(teamElement, points) {
+            const indicator = document.createElement('div');
+            indicator.className = 'score-change-indicator';
+            indicator.textContent = points > 0 ? `+${points}` : `${points}`;
+
+            // 根据设备类型设置不同的动画和位置
+            if (isMobile) {
+                // 手机端：向上飘动
+                indicator.style.animation = 'score-indicator 1.2s ease-out forwards';
+                const left = 30 + Math.random() * 40;
+                indicator.style.left = `${left}%`;
+                indicator.style.top = '50%';
+            } else {
+                // 电脑端：向右飘动，字体更大
+                indicator.style.animation = 'score-indicator-desktop 1.2s ease-out forwards';
+                indicator.style.right = '20%';
+                indicator.style.top = '50%';
+                indicator.style.fontSize = '6rem';
+            }
+
+            teamElement.appendChild(indicator);
+
+            // 动画结束后移除提示
+            setTimeout(() => {
+                if (indicator.parentNode) {
+                    indicator.parentNode.removeChild(indicator);
+                }
+            }, 1200);
         }
 
         // 更新队伍名称

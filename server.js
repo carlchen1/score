@@ -2,6 +2,20 @@ const WebSocket = require('ws');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+
+// 存储游戏状态
+let gameState = {
+    team1: 0,
+    team2: 0,
+    team1Name: "红队",
+    team2Name: "蓝队",
+    lastUpdated: new Date().toISOString()
+};
+
+// 存储连接的客户端
+let clients = new Set();
+let serverStartTime = new Date().toISOString();
 
 // 创建HTTP服务器
 const server = http.createServer((req, res) => {
@@ -67,7 +81,7 @@ function getDefaultHTML() {
         <h1>🏀 实时比分系统服务器</h1>
         <div class="status">
             <p>✅ 服务器运行正常</p>
-            <p>📊 请将 score_system_max_width.html 文件放在服务器目录下</p>
+            <p>📊 请将 index.html 文件放在服务器目录下</p>
             <p>🌐 访问 <a href="/">首页</a> 使用比分系统</p>
         </div>
     </div>
@@ -77,33 +91,9 @@ function getDefaultHTML() {
 
 // 创建WebSocket服务器
 const wss = new WebSocket.Server({
-    server,
+    server: server,
     clientTracking: true
 });
-
-// 存储游戏状态
-let gameState = {
-    team1: 0,
-    team2: 0,
-    team1Name: "红队",
-    team2Name: "蓝队",
-    lastUpdated: new Date().toISOString()
-};
-
-// 存储连接的客户端
-let clients = new Set();
-let serverStartTime = new Date().toISOString();
-
-// 广播游戏状态给所有客户端
-function broadcastState() {
-    const message = JSON.stringify({
-        type: 'stateUpdate',
-        data: gameState,
-        timestamp: new Date().toISOString()
-    });
-
-    broadcastToAllClients(message);
-}
 
 // 广播消息给所有客户端
 function broadcastToAllClients(message) {
@@ -119,6 +109,17 @@ function broadcastToAllClients(message) {
     });
 }
 
+// 广播游戏状态给所有客户端
+function broadcastState() {
+    const message = JSON.stringify({
+        type: 'stateUpdate',
+        data: gameState,
+        timestamp: new Date().toISOString()
+    });
+
+    broadcastToAllClients(message);
+}
+
 // 广播客户端数量
 function broadcastClientCount() {
     const countMessage = JSON.stringify({
@@ -128,6 +129,156 @@ function broadcastClientCount() {
     });
 
     broadcastToAllClients(countMessage);
+}
+
+// 广播效果触发消息
+function broadcastEffectsTrigger(team, points, playSound = false, excludeClient = null) {
+    const effectsMessage = JSON.stringify({
+        type: 'triggerEffects',
+        team: team,
+        points: points,
+        playSound: playSound,
+        timestamp: new Date().toISOString()
+    });
+
+    console.log(`广播效果触发消息给其他客户端: 队伍${team} 分数变化 ${points}`);
+    
+    let broadcastCount = 0;
+    clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN && client !== excludeClient) {
+            try {
+                client.send(effectsMessage);
+                broadcastCount++;
+            } catch (error) {
+                console.error('发送效果消息失败:', error);
+            }
+        }
+    });
+    
+    console.log(`效果消息已发送给 ${broadcastCount} 个客户端`);
+}
+
+// 发送错误消息
+function sendError(ws, message) {
+    try {
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: message,
+            timestamp: new Date().toISOString()
+        }));
+    } catch (error) {
+        console.error('发送错误消息失败:', error);
+    }
+}
+
+// 发送当前状态
+function sendCurrentState(ws) {
+    try {
+        ws.send(JSON.stringify({
+            type: 'state',
+            data: gameState,
+            timestamp: new Date().toISOString()
+        }));
+    } catch (error) {
+        console.error('发送状态失败:', error);
+    }
+}
+
+// 记录操作日志
+function logAction(clientIP, action, details) {
+    const logEntry = {
+        timestamp: new Date().toISOString(),
+        ip: clientIP,
+        action: action,
+        details: details,
+        gameState: { ...gameState }
+    };
+
+    console.log('操作日志:', JSON.stringify(logEntry));
+}
+
+// 处理分数更新
+function handleScoreUpdate(data, clientIP, ws) {
+    if (data.team === 1 || data.team === 2) {
+        const teamKey = `team${data.team}`;
+        const oldScore = gameState[teamKey];
+        gameState[teamKey] = Math.max(0, gameState[teamKey] + (data.points || 0));
+        gameState.lastUpdated = new Date().toISOString();
+
+        console.log(`IP:${clientIP} 队伍${data.team} 分数更新: ${oldScore} -> ${gameState[teamKey]}`);
+        
+        // 广播状态更新
+        broadcastState();
+
+        // 广播效果触发消息给其他客户端（排除操作端）
+        if (data.triggerEffects) {
+            broadcastEffectsTrigger(data.team, data.points, data.playSound, ws);
+        }
+
+        logAction(clientIP, `updateScore`, `队伍${data.team} 分数 ${data.points > 0 ? '+' : ''}${data.points}`);
+    }
+}
+
+// 处理队伍名称更新
+function handleTeamNameUpdate(data, clientIP) {
+    if (data.team === 1 || data.team === 2) {
+        const nameKey = `team${data.team}Name`;
+        const oldName = gameState[nameKey];
+        gameState[nameKey] = data.name || `队伍${data.team}`;
+        gameState.lastUpdated = new Date().toISOString();
+
+        console.log(`IP:${clientIP} 队伍${data.team} 名称更新: "${oldName}" -> "${gameState[nameKey]}"`);
+        broadcastState();
+
+        logAction(clientIP, `updateTeamName`, `队伍${data.team} 名称改为: ${gameState[nameKey]}`);
+    }
+}
+
+// 处理分数重置
+function handleResetScores(clientIP) {
+    const oldScores = { team1: gameState.team1, team2: gameState.team2 };
+    gameState.team1 = 0;
+    gameState.team2 = 0;
+    gameState.lastUpdated = new Date().toISOString();
+
+    console.log(`IP:${clientIP} 分数重置: 队伍1:${oldScores.team1}->0, 队伍2:${oldScores.team2}->0`);
+    broadcastState();
+
+    logAction(clientIP, `reset`, '所有分数已重置');
+}
+
+// 处理客户端消息
+function handleClientMessage(data, ws, clientIP) {
+    switch (data.type) {
+        case 'updateScore':
+            handleScoreUpdate(data, clientIP, ws); // 传入ws参数
+            break;
+
+        case 'updateTeamName':
+            handleTeamNameUpdate(data, clientIP);
+            break;
+
+        case 'reset':
+            handleResetScores(clientIP);
+            break;
+
+        case 'getState':
+            sendCurrentState(ws);
+            break;
+
+        case 'ping':
+            // 响应心跳
+            try {
+                ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+            } catch (error) {
+                console.error('发送pong失败:', error);
+            }
+            break;
+
+        default:
+            console.log('未知消息类型 from', clientIP, ':', data.type);
+            sendError(ws, '未知的消息类型: ' + data.type);
+    }
 }
 
 // 处理WebSocket连接
@@ -191,126 +342,6 @@ wss.on('connection', (ws, req) => {
     });
 });
 
-// 处理客户端消息
-function handleClientMessage(data, ws, clientIP) {
-    switch (data.type) {
-        case 'updateScore':
-            handleScoreUpdate(data, clientIP);
-            break;
-
-        case 'updateTeamName':
-            handleTeamNameUpdate(data, clientIP);
-            break;
-
-        case 'reset':
-            handleResetScores(clientIP);
-            break;
-
-        case 'getState':
-            sendCurrentState(ws);
-            break;
-
-        case 'ping':
-            // 响应心跳
-            try {
-                ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
-            } catch (error) {
-                console.error('发送pong失败:', error);
-            }
-            break;
-
-        default:
-            console.log('未知消息类型 from', clientIP, ':', data.type);
-            sendError(ws, '未知的消息类型: ' + data.type);
-    }
-}
-
-// 处理分数更新
-function handleScoreUpdate(data, clientIP) {
-    if (data.team === 1 || data.team === 2) {
-        const teamKey = `team${data.team}`;
-        const oldScore = gameState[teamKey];
-        gameState[teamKey] = Math.max(0, gameState[teamKey] + (data.points || 0));
-        gameState.lastUpdated = new Date().toISOString();
-
-        console.log(`IP:${clientIP} 队伍${data.team} 分数更新: ${oldScore} -> ${gameState[teamKey]}`);
-        broadcastState();
-
-        // 记录操作日志
-        logAction(clientIP, `updateScore`, `队伍${data.team} 分数 ${data.points > 0 ? '+' : ''}${data.points}`);
-    }
-}
-
-// 处理队伍名称更新
-function handleTeamNameUpdate(data, clientIP) {
-    if (data.team === 1 || data.team === 2) {
-        const nameKey = `team${data.team}Name`;
-        const oldName = gameState[nameKey];
-        gameState[nameKey] = data.name || `队伍${data.team}`;
-        gameState.lastUpdated = new Date().toISOString();
-
-        console.log(`IP:${clientIP} 队伍${data.team} 名称更新: "${oldName}" -> "${gameState[nameKey]}"`);
-        broadcastState();
-
-        logAction(clientIP, `updateTeamName`, `队伍${data.team} 名称改为: ${gameState[nameKey]}`);
-    }
-}
-
-// 处理分数重置
-function handleResetScores(clientIP) {
-    const oldScores = { team1: gameState.team1, team2: gameState.team2 };
-    gameState.team1 = 0;
-    gameState.team2 = 0;
-    gameState.lastUpdated = new Date().toISOString();
-
-    console.log(`IP:${clientIP} 分数重置: 队伍1:${oldScores.team1}->0, 队伍2:${oldScores.team2}->0`);
-    broadcastState();
-
-    logAction(clientIP, `reset`, '所有分数已重置');
-}
-
-// 发送当前状态
-function sendCurrentState(ws) {
-    try {
-        ws.send(JSON.stringify({
-            type: 'state',
-            data: gameState,
-            timestamp: new Date().toISOString()
-        }));
-    } catch (error) {
-        console.error('发送状态失败:', error);
-    }
-}
-
-// 发送错误消息
-function sendError(ws, message) {
-    try {
-        ws.send(JSON.stringify({
-            type: 'error',
-            message: message,
-            timestamp: new Date().toISOString()
-        }));
-    } catch (error) {
-        console.error('发送错误消息失败:', error);
-    }
-}
-
-// 记录操作日志
-function logAction(clientIP, action, details) {
-    const logEntry = {
-        timestamp: new Date().toISOString(),
-        ip: clientIP,
-        action: action,
-        details: details,
-        gameState: { ...gameState }
-    };
-
-    console.log('操作日志:', JSON.stringify(logEntry));
-
-    // 可以在这里添加将日志保存到文件的逻辑
-    // saveLogToFile(logEntry);
-}
-
 // 心跳检测
 setInterval(() => {
     clients.forEach(client => {
@@ -362,6 +393,19 @@ function loadStateFromFile() {
     });
 }
 
+// 获取本地IP地址
+function getLocalIP() {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const interface of interfaces[name]) {
+            if (interface.family === 'IPv4' && !interface.internal) {
+                return interface.address;
+            }
+        }
+    }
+    return 'localhost';
+}
+
 // 使用3000端口
 const PORT = process.env.PORT || 3000;
 
@@ -383,19 +427,6 @@ server.listen(PORT, '0.0.0.0', () => {
     // 记录服务器启动时间
     serverStartTime = new Date().toISOString();
 });
-
-// 获取本地IP地址
-function getLocalIP() {
-    const interfaces = require('os').networkInterfaces();
-    for (const name of Object.keys(interfaces)) {
-        for (const interface of interfaces[name]) {
-            if (interface.family === 'IPv4' && !interface.internal) {
-                return interface.address;
-            }
-        }
-    }
-    return 'localhost';
-}
 
 // 优雅关闭处理
 process.on('SIGINT', () => {
