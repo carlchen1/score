@@ -275,6 +275,22 @@ function handleClientMessage(data, ws, clientIP) {
             }
             break;
 
+        case 'swapTeams':
+            // 处理球队交换
+            console.log(`IP:${clientIP} 交换球队位置`);
+            const tempScore = gameState.team1;
+            const tempName = gameState.team1Name;
+            gameState.team1 = gameState.team2;
+            gameState.team1Name = gameState.team2Name;
+            gameState.team2 = tempScore;
+            gameState.team2Name = tempName;
+            gameState.lastUpdated = new Date().toISOString();
+            
+            // 广播更新后的状态
+            broadcastState();
+            logAction(clientIP, 'swapTeams', '交换了球队位置');
+            break;
+
         default:
             console.log('未知消息类型 from', clientIP, ':', data.type);
             sendError(ws, '未知的消息类型: ' + data.type);

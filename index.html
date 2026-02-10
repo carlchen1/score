@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>实时比分系统 - 优化背景版</title>
     <style>
         * {
@@ -86,7 +86,22 @@
             align-items: center;
             justify-content: flex-start;
             padding: 10px;
+            padding-bottom: 60px; /* 增加底部内边距，避免操作面板靠近底部 */
             height: calc(100vh - 50px);
+        }
+
+        /* 手机端操作面板调整 */
+        @media (max-width: 768px) {
+            .controls-panel {
+                margin-top: auto;
+                margin-bottom: 10px;
+                transform: translateY(-20px); /* 向上移动20px */
+            }
+            
+            .score-display {
+                flex: 1;
+                min-height: 40vh;
+            }
         }
 
         .score-display {
@@ -179,6 +194,7 @@
             margin-bottom: 10px;
             font-size: 1.2rem;
             text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+            display: none; /* 隐藏控制文字 */
         }
 
         .control-buttons {
@@ -284,8 +300,9 @@
                 font-size: 12rem;
             }
 
+            /* 电脑端显示控制按钮 */
             .controls {
-                display: none;
+                display: flex !important;
             }
 
             .controls-panel {
@@ -526,6 +543,7 @@
         <h1>实时比分系统</h1>
         <div class="header-controls">
             <button class="toggle-btn" onclick="toggleControls()">隐藏控制</button>
+            <button class="toggle-btn" id="swapTeamsBtn" onclick="toggleTeamSides()">交换球队</button>
             <div class="font-controls">
                 <button class="font-btn" onclick="changeFontSize(-1)">A-</button>
                 <button class="font-btn" onclick="changeFontSize(1)">A+</button>
@@ -538,12 +556,12 @@
         <div class="score-display">
             <div class="team" id="team1">
                 <div class="team-name" contenteditable="true" onblur="updateTeamName(1)">红队</div>
-                <div class="score" id="score1">108</div>
+                <div class="score" id="score1" contenteditable="true" onblur="updateScoreDirectly(1)">108</div>
             </div>
 
             <div class="team" id="team2">
                 <div class="team-name" contenteditable="true" onblur="updateTeamName(2)">蓝队</div>
-                <div class="score" id="score2">22</div>
+                <div class="score" id="score2" contenteditable="true" onblur="updateScoreDirectly(2)">22</div>
             </div>
         </div>
 
@@ -755,33 +773,39 @@
 
                 ws.onmessage = (event) => {
                     try {
-                        const data = JSON.parse(event.data);
-                        console.log('收到消息:', data);
+                const data = JSON.parse(event.data);
+                console.log('收到消息:', data);
 
-                        if (data.type === 'init') {
-                            // 初始化数据
-                            gameState = data.data;
-                            updateDisplay();
-                            updateConnectionStatus('connected', '已同步数据');
-                        } else if (data.type === 'stateUpdate') {
-                            // 更新数据，但不触发效果
-                            gameState = data.data;
-                            updateDisplay();
-                        } else if (data.type === 'clientCount') {
-                            // 更新客户端数量
-                            document.getElementById('clientCount').textContent = data.count;
-                        } else if (data.type === 'triggerEffects') {
-                            // 专门处理效果触发消息
-                            console.log('收到服务器广播的效果触发消息');
-                            createScoreEffects(data.team, data.points);
+                if (data.type === 'init') {
+                    // 初始化数据
+                    gameState = data.data;
+                    updateDisplay();
+                    updateConnectionStatus('connected', '已同步数据');
+                } else if (data.type === 'stateUpdate') {
+                    // 更新数据，但不触发效果
+                    gameState = data.data;
+                    updateDisplay();
+                } else if (data.type === 'clientCount') {
+                    // 更新客户端数量
+                    document.getElementById('clientCount').textContent = data.count;
+                } else if (data.type === 'triggerEffects') {
+                    // 专门处理效果触发消息
+                    console.log('收到服务器广播的效果触发消息');
+                    createScoreEffects(data.team, data.points);
 
-                            if (data.playSound) {
-                                playSound(data.points, data.team);
-                            }
-                        }
-                    } catch (error) {
-                        console.log('消息解析错误:', error);
+                    if (data.playSound) {
+                        playSound(data.points, data.team);
                     }
+                } else if (data.type === 'swapTeams') {
+                    // 处理球队交换消息
+                    console.log('收到球队交换消息');
+                    gameState = data.data;
+                    updateDisplay();
+                    saveToLocalStorage();
+                }
+            } catch (error) {
+                console.log('消息解析错误:', error);
+            }
                 };
 
                 ws.onclose = () => {
@@ -1153,6 +1177,63 @@
 
         // 初始化字体大小指示器
         updateFontSizeIndicator();
+
+        // 直接修改比分
+        function updateScoreDirectly(team) {
+            const scoreElement = document.getElementById(`score${team}`);
+            const newScore = parseInt(scoreElement.textContent);
+            
+            if (!isNaN(newScore) && newScore >= 0) {
+                const oldScore = gameState[`team${team}`];
+                gameState[`team${team}`] = newScore;
+                
+                updateDisplay();
+                saveToLocalStorage();
+                
+                // 如果WebSocket连接存在，发送更新到服务器
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    const points = newScore - oldScore;
+                    ws.send(JSON.stringify({
+                        type: 'updateScore',
+                        team: team,
+                        points: points,
+                        playSound: false,
+                        triggerEffects: true
+                    }));
+                }
+                
+                // 创建分数变化效果
+                createScoreEffects(team, newScore - oldScore);
+            } else {
+                // 如果输入无效，恢复原来的分数
+                scoreElement.textContent = gameState[`team${team}`];
+            }
+        }
+
+        // 交换球队位置
+        function toggleTeamSides() {
+            // 交换gameState中的数据
+            const tempScore = gameState.team1;
+            const tempName = gameState.team1Name;
+            
+            gameState.team1 = gameState.team2;
+            gameState.team1Name = gameState.team2Name;
+            gameState.team2 = tempScore;
+            gameState.team2Name = tempName;
+            
+            // 更新显示
+            updateDisplay();
+            
+            // 保存到本地存储
+            saveToLocalStorage();
+            
+            // 如果WebSocket连接存在，发送更新到服务器
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'swapTeams'
+                }));
+            }
+        }
     </script>
 </body>
 
